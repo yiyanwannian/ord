@@ -80,6 +80,7 @@ impl WalletCommand {
       _ => {}
     };
 
+    // 初始化钱包
     let wallet = WalletConstructor::construct(
       self.name.clone(),
       self.no_sync,
@@ -89,13 +90,19 @@ impl WalletCommand {
         .as_ref()
         .map(Url::as_str)
         .or(settings.server_url())
-        .unwrap_or("http://127.0.0.1:80")
+        .unwrap_or("http://127.0.0.1:80") 
         .parse::<Url>()
         .context("invalid server URL")?,
     )?;
 
+    /*
+     配置server_url, 在 wallet 命令行后添加 --server-url http://127.0.0.1:80
+     如:
+     ord -r --index-runes wallet --server-url http://127.0.0.1:80 --name alice ...
+    */
+
     match self.subcommand {
-      Subcommand::Balance => balance::run(wallet),
+      Subcommand::Balance => balance::run(wallet), // todo: houfa 明天看
       Subcommand::Batch(batch) => batch.run(wallet),
       Subcommand::Dump => dump::run(wallet),
       Subcommand::Inscribe(inscribe) => inscribe.run(wallet),
@@ -104,7 +111,7 @@ impl WalletCommand {
       Subcommand::Receive(receive) => receive.run(wallet),
       Subcommand::Resume => resume::run(wallet),
       Subcommand::Sats(sats) => sats.run(wallet),
-      Subcommand::Send(send) => send.run(wallet),
+      Subcommand::Send(send) => send.run(wallet), // 这里发送交易
       Subcommand::Transactions(transactions) => transactions.run(wallet),
       Subcommand::Outputs => outputs::run(wallet),
       Subcommand::Cardinals => cardinals::run(wallet),

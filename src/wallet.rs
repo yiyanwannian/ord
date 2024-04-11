@@ -138,7 +138,7 @@ impl Wallet {
       .utxos()
       .keys()
       .filter(|utxo| inscriptions.contains(utxo))
-      .chain(self.get_runic_outputs()?.iter())
+      .chain(self.get_runic_outputs()?.iter()) // todo: houfa runic 调研一下
       .cloned()
       .filter(|utxo| !locked.contains(utxo))
       .collect::<Vec<OutPoint>>();

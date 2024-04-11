@@ -16,6 +16,7 @@ impl WalletConstructor {
     settings: Settings,
     rpc_url: Url,
   ) -> Result<Wallet> {
+    // 构建ord rpc request headers
     let mut headers = HeaderMap::new();
     headers.insert(
       header::ACCEPT,
@@ -44,8 +45,23 @@ impl WalletConstructor {
   }
 
   pub(crate) fn build(self) -> Result<Wallet> {
+    // 打开钱包数据库
     let database = Wallet::open_database(&self.name, &self.settings)?;
 
+    // 构建bitcoin rpc client，同时检查bitcoin core 钱包版本，加载钱包, 检查UTXO描述符
+    /*
+    UTXO 描述符提供了一种标准化的方法来描述比特币钱包需要处理的各种类型的输出。这使得钱包软件可以更容易地理解和使用这些输出，
+    无论它们是 P2PKH（Pay-to-Public-Key-Hash）、P2SH（Pay-to-Script-Hash）、P2WPKH（Pay-to-Witness-Public-Key-Hash）还是其他类型的输出。
+    
+    如：UTXO 描述符 
+    tr([423050f1/86h/1h/0h/1/1]bc4d4f74692678d4246a737d2654ea088ba879d5204e6a76200a54b679c9c031)#gvghjmsd
+
+    这个描述符的各个部分的含义如下：
+    - tr：这是描述符的类型，表示这是一个 Taproot 输出。Taproot 是比特币的一种新的地址类型，它使用了 Schnorr 签名和 MAST（Merklized Abstract Syntax Trees）技术，可以提供更好的隐私和更高的灵活性。
+    - 423050f1/86h/1h/0h/1/1]：这是一个硬币类型路径（coin type path），它描述了如何从主公钥（master public key）派生出子公钥。这个路径遵循了 BIP32 提议的规定，86h/1h/0h/1/1 表示这是从主公钥派生出的特定路径的公钥。
+    - bc4d4f74692678d4246a737d2654ea088ba879d5204e6a76200a54b679c9c031：这是一个公钥，它是 Taproot 地址的一部分。
+    - #gvghjmsd：这是一个校验和，用于检查描述符是否被正确地输入或复制。
+     */
     let bitcoin_client = {
       let client =
         Wallet::check_version(self.settings.bitcoin_rpc_client(Some(self.name.clone()))?)?;
@@ -62,7 +78,7 @@ impl WalletConstructor {
     let chain_block_count = bitcoin_client.get_block_count().unwrap() + 1;
 
     if !self.no_sync {
-      for i in 0.. {
+      for i in 0.. { // 无限循环，直到同步成功，或者尝试次数超过20次
         let response = self.get("/blockcount")?;
 
         if response
@@ -79,19 +95,23 @@ impl WalletConstructor {
       }
     }
 
+    // 获取所有UTXO，包含已锁定的UTXO
     let mut utxos = Self::get_utxos(&bitcoin_client)?;
     let locked_utxos = Self::get_locked_utxos(&bitcoin_client)?;
     utxos.extend(locked_utxos.clone());
 
     let output_info = self.get_output_info(utxos.clone().into_keys().collect())?;
 
+    // 获取所有的铭文
     let inscriptions = output_info
       .iter()
       .flat_map(|(_output, info)| info.inscriptions.clone())
       .collect::<Vec<InscriptionId>>();
 
+    // 从ord server获取铭文信息
     let (inscriptions, inscription_info) = self.get_inscriptions(&inscriptions)?;
 
+    // 获取ord server的rune_index和sat_index
     let status = self.get_server_status()?;
 
     Ok(Wallet {
@@ -111,7 +131,7 @@ impl WalletConstructor {
   }
 
   fn get_output_info(&self, outputs: Vec<OutPoint>) -> Result<BTreeMap<OutPoint, api::Output>> {
-    let response = self.post("/outputs", &outputs)?;
+    let response = self.post("/outputs", &outputs)?; // todo: houfa 后面调查
 
     if !response.status().is_success() {
       bail!("wallet failed get outputs: {}", response.text()?);

@@ -32,8 +32,10 @@ impl Send {
 
     let unsigned_transaction = match self.outgoing {
       Outgoing::Amount(amount) => {
+        // 锁定utxos
         Self::create_unsigned_send_amount_transaction(&wallet, address, amount, self.fee_rate)?
       }
+      // 组装未签名的runes交易
       Outgoing::Rune { decimal, rune } => Self::create_unsigned_send_runes_transaction(
         &wallet,
         address,
@@ -41,6 +43,7 @@ impl Send {
         decimal,
         self.fee_rate,
       )?,
+      // 组装未签名的satpoint交易
       Outgoing::InscriptionId(id) => Self::create_unsigned_send_satpoint_transaction(
         &wallet,
         address,
@@ -74,6 +77,10 @@ impl Send {
     let unspent_outputs = wallet.utxos();
 
     let (txid, psbt) = if self.dry_run {
+      /*
+      PSBT 是 Partially Signed Bitcoin Transaction（部分签名比特币交易）的缩写。
+      PSBT 是一种数据格式，它包含了所有创建、签名和广播一个比特币交易所需的信息，但是可能只有部分输入被签名。
+       */
       let psbt = wallet
         .bitcoin_client()
         .wallet_process_psbt(
@@ -100,11 +107,12 @@ impl Send {
 
       let signed_tx = wallet
         .bitcoin_client()
-        .finalize_psbt(&psbt, None)?
+        .finalize_psbt(&psbt, None)? // 发送到比特币最终签名交易
         .hex
         .ok_or_else(|| anyhow!("unable to sign transaction"))?;
 
       (
+        // 向比特币网络发送交易
         wallet.bitcoin_client().send_raw_transaction(&signed_tx)?,
         psbt,
       )
@@ -122,6 +130,7 @@ impl Send {
       fee = fee.checked_sub(txout.value).unwrap();
     }
 
+    // 返回输出
     Ok(Some(Box::new(Output {
       txid,
       psbt,
@@ -237,7 +246,7 @@ impl Send {
     let mut input = Vec::new();
 
     for output in runic_outputs {
-      if inscribed_outputs.contains(&output) {
+      if inscribed_outputs.contains(&output) { // 将inscribed铭刻过的都筛选出来
         continue;
       }
 
@@ -268,7 +277,7 @@ impl Send {
       edicts: vec![Edict {
         amount,
         id,
-        output: 2,
+        output: 2, // todo: houfa 为什么是2
       }],
       ..default()
     };
@@ -287,15 +296,16 @@ impl Send {
         .collect(),
       output: vec![
         TxOut {
+          // 组建 runestone output
           script_pubkey: runestone.encipher(),
           value: 0,
         },
         TxOut {
-          script_pubkey: wallet.get_change_address()?.script_pubkey(),
+          script_pubkey: wallet.get_change_address()?.script_pubkey(), // 找零地址
           value: TARGET_POSTAGE.to_sat(),
         },
         TxOut {
-          script_pubkey: destination.script_pubkey(),
+          script_pubkey: destination.script_pubkey(), // 目标地址
           value: TARGET_POSTAGE.to_sat(),
         },
       ],
