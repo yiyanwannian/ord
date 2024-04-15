@@ -209,7 +209,7 @@ impl Wallet {
   pub(crate) fn get_runic_outputs(&self) -> Result<BTreeSet<OutPoint>> {
     let mut runic_outputs = BTreeSet::new();
     for (output, info) in self.output_info.iter() {
-      if !info.runes.is_empty() {
+      if !info.runes.is_empty() {  // 筛选出已铭刻的outputs，命名为runic_outputs
         runic_outputs.insert(*output);
       }
     }

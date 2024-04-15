@@ -95,7 +95,7 @@ impl WalletConstructor {
       }
     }
 
-    // 获取所有UTXO，包含已锁定的UTXO
+    // 获取所有UTXO和即将产生的新的utxo
     let mut utxos = Self::get_utxos(&bitcoin_client)?;
     let locked_utxos = Self::get_locked_utxos(&bitcoin_client)?;
     utxos.extend(locked_utxos.clone());

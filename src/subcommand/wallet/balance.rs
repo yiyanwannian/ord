@@ -28,14 +28,18 @@ pub(crate) fn run(wallet: Wallet) -> SubcommandResult {
   for (output, txout) in unspent_outputs {
     let rune_balances = wallet.get_runes_balances_for_output(output)?;
 
+    // 通过钱包的inscriptions，判断当前output是否包含在inscriptions中，在则is_ordinal为true，说明为ordinal
     let is_ordinal = inscription_outputs.contains(output);
-    let is_runic = !rune_balances.is_empty();
+    let is_runic = !rune_balances.is_empty(); // rune_balances不为空则is_runic为true, 说明存在符文
 
+    // 对钱包中 ordinal utxo的txout.value相加
     if is_ordinal {
       ordinal += txout.value;
     }
 
     if is_runic {
+
+      // 集合rune_balances中的runes信息（decimal, value, scale），将其放入runes中
       for (spaced_rune, pile) in rune_balances {
         runes
           .entry(spaced_rune)
@@ -48,9 +52,11 @@ pub(crate) fn run(wallet: Wallet) -> SubcommandResult {
             scale: pile.divisibility,
           });
       }
+      // 对钱包中 runic utxo的txout.value相加
       runic += txout.value;
     }
 
+    // 对钱包中既不是ordinal也不是runic的utxo的txout.value相加
     if !is_ordinal && !is_runic {
       cardinal += txout.value;
     }
@@ -61,11 +67,11 @@ pub(crate) fn run(wallet: Wallet) -> SubcommandResult {
   }
 
   Ok(Some(Box::new(Output {
-    cardinal,
-    ordinal,
-    runes: wallet.has_rune_index().then_some(runes),
-    runic: wallet.has_rune_index().then_some(runic),
-    total: cardinal + ordinal + runic,
+    cardinal, // 既不是ordinal也不是runic的utxo的txout.value的和
+    ordinal, // 钱包中 ordinal utxo的txout.value的和
+    runes: wallet.has_rune_index().then_some(runes), // runes信息
+    runic: wallet.has_rune_index().then_some(runic), // 钱包中 runic utxo的txout.value的和
+    total: cardinal + ordinal + runic, // 钱包中cardinal、ordinal、runic的和，即所有utxo的txout.value的和
   })))
 }
 
